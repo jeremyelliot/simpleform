@@ -4,30 +4,34 @@ if (!defined('BASEPATH')) exit('No direct script access allowed');
 
 /* SimpleForm.php 
  * 
- * 02-MAY-2011 JElliot  added method addOption($value, $label)
- * 14-JUL-2011 JElliot  fixed bug in method setSelectValue($control, $value)
- * 14-DEC-2011 JElliot  added method __toString() as wrapper for asXMLFragment()
- * 15-DEC-2011 JElliot  added method addAttribute; over-rides parent 
- *                      method and allows chaining.
- * 19-FEB-2012 JElliot  XHTMLForm has become SimpleForm helper for CodeIgniter
- * 
  * note: The CI standard for class and method naming is underscore_separated
- *    but this class used camelCase because it inherits from a php class
+ *    but this class used camelCase because it extends a php class
  *    that uses camelCase.
  */
 
 /* class for manipulating XHTML forms 
  * 
+ * The basic use of this class is to load an HTML form from a file or string,
+ * set new values into the form, then get the form HTML (with new values) to
+ * be displayed.
  * 
+ * It extends SimpleXMLElement, so it also allows the form to be 
+ * traversed and modified in all sorts of other ways.
  */
 
 class SimpleForm extends SimpleXMLElement {
 
 	/**
 	 * Returns the value of the named control (form element)
-	 * If the control has multiple values, they are returned in an array.
+   * 
+	 * If the control has multiple selected values, or there are multiple
+   * controls with the same name (array notation eg. phone[]),
+   * then they are returned in an array.
 	 * 
+   * If the named control is not found in the form, an empty array is returned.
+   * 
 	 * @param string $controlName name attribute of the form element(s)
+	 * @return array one or more values
 	 */
 	public function getValue($controlName)
 	{
@@ -61,10 +65,19 @@ class SimpleForm extends SimpleXMLElement {
 
 	/**
 	 * Sets the value(s) of the named control.
-	 * If the control takes multiple values, $value should be an array of
-	 * values, any values that are set in the control will be unset if they
-	 * do not exist in the $value array.
+   * 
+	 * If the control takes multiple values, or there are multiple
+   * controls with the same name (array notation eg. phone[]),
+   * $value should be an array of values.
+   * 
+   * NOTE: Any values that are set in the control will be unset (not ignored)
+   * if they do not exist in the $value array. This behaviour allows you
+   * to use a cleaned & validated version of the request (eg. $_POST)
+   * to fill the form
+   * 
 	 * @param string $controlName name attribute of the form element(s)
+   * @param string|array $value new value(s) to set
+	 * @return \SimpleForm $this
 	 */
 	public function setValue($controlName, $value)
 	{
@@ -94,14 +107,14 @@ class SimpleForm extends SimpleXMLElement {
 
 	/**
 	 * Takes an array of values and inserts them into the form.
+   * 
 	 * This method can take an array in the same form as the $_REQUEST array
 	 * created by the submission of $this form. For example:
 	 * 
 	 *    $form_file = file_get_contents('my_form.tpl');
 	 *    $my_form = new SimpleForm($form_file);
-	 *    $input = clean_and_validate($_POST);
 	 * 
-	 *    $my_form->setValues($input);
+	 *    $my_form->setValues(clean_and_validate($_POST));
 	 * 
 	 *    ...
 	 * 
@@ -124,11 +137,17 @@ class SimpleForm extends SimpleXMLElement {
 
 	/**
 	 * Sets the value of an <input> control, used by the setValue method.
-	 * 
+   * 
+   * NOTE: Any checkbox or radio will be unset (not ignored) if its value
+   * does not exist in the $value array. 
+   * 
+   * For other <input> types, the new value will come from $value in the
+   * case of a string or number, or from $value[0] in the case of an array. 
+   * 
 	 * @param SimpleXMLElement $control the <input> element
-	 * @param string $value the value to set
+   * @param string|array $value new value(s)
 	 */
-	public static function setInputValue($control, $value)
+	public static function setInputValue(SimpleXMLElement $control, $value)
 	{
 		$value = (is_array($value))
 				? $value
@@ -155,12 +174,12 @@ class SimpleForm extends SimpleXMLElement {
 	}
 
 	/**
-	 * Sets the value of a <select> control, used by the setValue method.
-	 *
+	 * Sets the value(s) of a <select> control.
+   * 
 	 * @param SimpleXMLElement $control the <select> element
-	 * @param string $value the value to set
+   * @param string|array $value new value(s) to set
 	 */
-	public static function setSelectValue($control, $value)
+	public static function setSelectValue(SimpleXMLElement $control, $value)
 	{
 		$value = (is_array($value))
 				? $value
@@ -179,7 +198,9 @@ class SimpleForm extends SimpleXMLElement {
 	}
 
 	/**
-	 * Adds <option> elements to a <select> element 
+	 * Adds <option> elements to a <select> element.
+   * 
+   * This method has no effect if this element is not a select
 	 *
 	 * @param string $value value of the option
 	 * @param string $label display label for the option
@@ -201,6 +222,8 @@ class SimpleForm extends SimpleXMLElement {
 	/**
 	 * Adds <option>s to this <select> element
 	 *
+   * This method has no effect if this element is not a select
+	 *
 	 * @param array $options options to be added - array('value' => 'label', ...)
 	 * @return \SimpleForm $this
 	 */
@@ -217,19 +240,19 @@ class SimpleForm extends SimpleXMLElement {
 	}
 
 	/**
-	 * Gets a sinlge SimpleForm element by its id attribute 
+	 * Gets a single SimpleForm element by its id attribute 
 	 *
-	 * @param string $elemid id attribute of element
+	 * @param string $elemId id attribute of element
 	 * @return \SimpleForm identified element
 	 */
-	public function getElementById($elemid)
+	public function getElementById($elemId)
 	{
-		return current($this->xpath("//*[@id='$elemid']"));
+		return current($this->xpath("//*[@id='$elemId']"));
 	}
 
 	/**
-	 * Gets an array of SimpleForm elements by tagname 
-	 *
+	 * Gets an array of SimpleForm elements by tagname
+   * 
 	 * @param string $tagName eg. 'input' or 'textarea'
 	 * @return array<SimpleForm> array of elements 
 	 */
@@ -295,10 +318,10 @@ class SimpleForm extends SimpleXMLElement {
 	}
 
 	/**
-	 * Sets the action attribute of this form.
+	 * Tries set to the action attribute of this form.
 	 * 
-	 * @param type $url
-	 * @return boolean 
+	 * @param string $url
+	 * @return boolean TRUE if the <form> element was found and modified
 	 */
 	public function setAction($url)
 	{
@@ -312,6 +335,7 @@ class SimpleForm extends SimpleXMLElement {
 			return false;
 		}
 		$form['action'] = $url;
+    return TRUE;
 	}
 
 }
